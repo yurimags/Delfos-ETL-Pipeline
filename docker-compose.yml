@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  db_fonte:
+    image: postgres:15
+    container_name: delfos_db_fonte
+    environment:
+      POSTGRES_DB: fonte_db
+      POSTGRES_USER: fonte_user
+      POSTGRES_PASSWORD: fonte_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - fonte_data:/var/lib/postgresql/data
+      - ./database/init_fonte.sql:/docker-entrypoint-initdb.d/init_fonte.sql
+    networks:
+      - delfos_network
+
+  db_alvo:
+    image: postgres:15
+    container_name: delfos_db_alvo
+    environment:
+      POSTGRES_DB: alvo_db
+      POSTGRES_USER: alvo_user
+      POSTGRES_PASSWORD: alvo_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - alvo_data:/var/lib/postgresql/data
+    networks:
+      - delfos_network
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: delfos_api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://fonte_user:fonte_password@db_fonte:5432/fonte_db
+    depends_on:
+      - db_fonte
+    networks:
+      - delfos_network
+
+  etl:
+    build:
+      context: .
+      dockerfile: etl/Dockerfile
+    container_name: delfos_etl
+    environment:
+      API_URL: http://api:8000
+      ALVO_DATABASE_URL: postgresql://alvo_user:alvo_password@db_alvo:5432/alvo_db
+    depends_on:
+      - api
+      - db_alvo
+    networks:
+      - delfos_network
+
+  seed_fonte:
+    build:
+      context: .
+      dockerfile: database/Dockerfile
+    container_name: delfos_seed_fonte
+    environment:
+      DB_HOST: db_fonte
+      DB_PORT: 5432
+      DB_NAME: fonte_db
+      DB_USER: fonte_user
+      DB_PASSWORD: fonte_password
+    depends_on:
+      - db_fonte
+    networks:
+      - delfos_network
+
+  dagster:
+    build:
+      context: .
+      dockerfile: dagster/Dockerfile
+    container_name: delfos_dagster
+    ports:
+      - "3000:3000"
+    environment:
+      # Banco de Dados Fonte
+      DB_HOST: db_fonte
+      DB_PORT: 5432
+      DB_NAME: fonte_db
+      DB_USER: fonte_user
+      DB_PASSWORD: fonte_password
+      # Banco de Dados Alvo
+      DB_ALVO_HOST: db_alvo
+      DB_ALVO_PORT: 5432
+      DB_ALVO_NAME: alvo_db
+      DB_ALVO_USER: alvo_user
+      DB_ALVO_PASSWORD: alvo_password
+      # API
+      API_URL: http://api:8000
+      # URLs completas (para compatibilidade)
+      FONTE_DATABASE_URL: postgresql://fonte_user:fonte_password@db_fonte:5432/fonte_db
+      ALVO_DATABASE_URL: postgresql://alvo_user:alvo_password@db_alvo:5432/alvo_db
+    depends_on:
+      - api
+      - db_fonte
+      - db_alvo
+    networks:
+      - delfos_network
+
+volumes:
+  fonte_data:
+  alvo_data:
+
+networks:
+  delfos_network:
+    driver: bridge

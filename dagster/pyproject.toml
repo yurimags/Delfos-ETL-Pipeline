@@ -1,0 +1,3 @@
+[tool.dagster]
+module_name = "dagster"
+code_location_name = "delfos_etl"
