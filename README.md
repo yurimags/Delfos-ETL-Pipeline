@@ -7,6 +7,10 @@ Pipeline de ETL para processamento de dados de sensores.
 ### Pré-requisitos
 - Docker
 - Docker Compose
+- Criar arquivo `.env` copiando os valores de `env.example`:
+  ```bash
+  cp env.example .env
+  ```
 
 ### Comandos
 
